@@ -1,29 +1,35 @@
 import pandas as pd
+import random
+from datetime import datetime, timedelta
 
-# 1. شبیه‌سازی داده‌های لاگ مخابرات (Data Simulation)
-# این بخش جایگزین فایل‌های اکسل یا دیتابیس قدیمی می‌شود
-data = {
-    'Call_ID': [1001, 1002, 1003, 1004, 1005],
-    'Date': ['2024-01-01', '2024-01-01', '2024-01-02', '2024-01-02', '2024-01-02'],
-    'Duration_Seconds': [120, 450, 300, 60, 500],  # مدت زمان مکالمه
-    'Status': ['Successful', 'Dropped', 'Successful', 'Successful', 'Dropped'],
-    'Region': ['Tehran', 'Isfahan', 'Tehran', 'Shiraz', 'Tehran']
-}
+RED = "\x1b[31m"
+END = "\x1b[0m"
 
-# 2. تبدیل به DataFrame (جدول هوشمند پایتون)
-df = pd.DataFrame(data)
+def generate_data():
+    num_records = 100
+    start_time = datetime.now()
 
-print("--- داده‌های خام (Raw Data) ---")
-print(df)
-print("\n" + "="*40 + "\n")
+    data = {
+        'Date': [start_time - timedelta(days=x) for x in range(num_records)],
+        'Duration_Seconds': [random.randint(10, 1200) for _ in range(num_records)],
+        'Data_Usage_MB': [random.uniform(0, 500) for _ in range(num_records)],
+        'Call_Type': [random.choice(['Internal', 'International', 'Roaming']) for _ in range(num_records)]
+    }
+    df = pd.DataFrame(data)
+    df.to_csv('report_output.csv', index=False)
+    print("✅ داده‌های جدید تولید و در فایل ذخیره شدند.")
+    return df
 
-# 3. تحلیل داده‌ها: محاسبه میانگین زمان مکالمه برای هر شهر
-# معادل دستورات SQL Group By یا Pivot Table در اکسل
-report = df.groupby('Region')['Duration_Seconds'].mean().reset_index()
+def analyze_data(df):
+    print(f"\n{'=' * 40}\n📊(Management Report)\n{'=' * 40}"
+          f"\n1. The first five rows:\n{RED}{df.head()}{END}")
+    print(f"\n2. Statistics:\n{RED}{df.describe()}{END}")
+    print(f"\n3. Number of long calls (over 10 minutes):\n{RED}{len(df[df['Duration_Seconds']>600])}{END}")
+    print(f"\n4. Average internet usage by call type:\n{RED}{df.groupby('Call_Type')['Data_Usage_MB'].mean()}{END}")
 
-print("--- گزارش میانگین مکالمه بر حسب منطقه ---")
-print(report)
 
-# 4. ذخیره گزارش در یک فایل CSV (اتوماسیون)
-report.to_csv('report_output.csv', index=False)
-print("\n>>> فایل گزارش با نام 'report_output.csv' ذخیره شد.")
+if __name__ == "__main__":
+    print(f"---{RED} START PROGRAM {END}---")
+    df = generate_data()
+    analyze_data(df)
+
