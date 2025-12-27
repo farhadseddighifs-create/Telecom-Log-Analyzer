@@ -1,35 +1,44 @@
 import pandas as pd
-import random
-from datetime import datetime, timedelta
 
-RED = "\x1b[31m"
-END = "\x1b[0m"
+RED = '\033[91m'
+GREEN = '\033[3;4;32m'
+END = '\033[0m'
+ITALIC = '\033[3m'
 
-def generate_data():
-    num_records = 100
-    start_time = datetime.now()
 
-    data = {
-        'Date': [start_time - timedelta(days=x) for x in range(num_records)],
-        'Duration_Seconds': [random.randint(10, 1200) for _ in range(num_records)],
-        'Data_Usage_MB': [random.uniform(0, 500) for _ in range(num_records)],
-        'Call_Type': [random.choice(['Internal', 'International', 'Roaming']) for _ in range(num_records)]
-    }
-    df = pd.DataFrame(data)
-    df.to_csv('report_output.csv', index=False)
-    print("✅ داده‌های جدید تولید و در فایل ذخیره شدند.")
-    return df
+def load_data(filename):
+    try:
+        print(f"\n{GREEN}Loading data from {filename}...{END}")
+        df = pd.read_csv(filename)
+        print(f"{filename} loaded successfully with {len(df)} rows")
+        return df
+    except FileNotFoundError:
+        print(f"{RED}File {filename} not found.{END}")
+        return None
+
+
+def clean_data(df):
+    print(f"\n{GREEN}Cleaning data...{END}")
+    initial_count = len(df)
+    df_clean = df.dropna()
+    print(f"Removed {initial_count - len(df_clean)} rows with empty data.")
+    df_negative_zero = df_clean[df_clean['Duration_Seconds'] <= 0]
+    df_clean = df_clean[df_clean['Duration_Seconds'] > 0]
+    print(f"Removed {len(df_negative_zero)} records with negative or zero duration seconds.")
+    print(f"\n{ITALIC}Final data ready for analysis: {len(df_clean)} records{END}")
+    return df_clean
+
 
 def analyze_data(df):
-    print(f"\n{'=' * 40}\n📊(Management Report)\n{'=' * 40}"
-          f"\n1. The first five rows:\n{RED}{df.head()}{END}")
-    print(f"\n2. Statistics:\n{RED}{df.describe()}{END}")
-    print(f"\n3. Number of long calls (over 10 minutes):\n{RED}{len(df[df['Duration_Seconds']>600])}{END}")
-    print(f"\n4. Average internet usage by call type:\n{RED}{df.groupby('Call_Type')['Data_Usage_MB'].mean()}{END}")
+    print(f"\n{RED}--- FINAL REPORT ---\n{END}")
+    intl_calls = df[df['Call_Type'] == 'International']
+    avg_usage = intl_calls['Data_Usage_MB'].mean()
+    print(f"{GREEN}Average internet usage for international calls:{END} {avg_usage} MB")
 
 
-if __name__ == "__main__":
-    print(f"---{RED} START PROGRAM {END}---")
-    df = generate_data()
-    analyze_data(df)
+print(f'{RED}--- START PROGRAM ---{END}')
+raw_data = load_data('telecom_data.csv')
 
+if raw_data is not None:
+    clean_dataframe = clean_data(raw_data)
+    analyze_data(clean_dataframe)

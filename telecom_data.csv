@@ -1,0 +1,9 @@
+Date,Duration_Seconds,Data_Usage_MB,Call_Type
+12/27/2025,120,50.5,Internal
+12/26/2025,300,10.2,International
+12/25/2025,,0,Roaming
+12/24/2025,-50,20,Internal
+12/23/2025,600,100,International
+12/22/2025,45,5.5,Internal
+12/21/2025,900,250,Roaming
+12/20/2025,0,0,Internal
