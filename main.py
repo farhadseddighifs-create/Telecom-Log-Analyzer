@@ -78,6 +78,38 @@ def detect_fraud(df):
     else:
         print(f"{GREEN}✅ No suspicious activity detected.{END}")
 
+def analyze_peak_hours(df):
+    print(f"\n{GREEN}--- NETWORK TRAFFIC ANALYSIS: PEAK HOURS ---{END}")
+    df['Date']= pd.to_datetime(df['Date'])
+    df['Hour']= df['Date'].dt.hour
+    # شمارش تعداد تماس‌ها در هر ساعت
+    hourly_traffic = df.groupby('Hour').size()
+
+    # پیدا کردن شلوغ‌ترین ساعت (Busy Hour)
+    busy_hour = hourly_traffic.idxmax()
+    max_calls = hourly_traffic.max()
+
+    print(f"📈 Busiest Hour of the day: {RED}{busy_hour}:00 to {busy_hour + 1}:00{END}")
+    print(f"   Total calls in this hour: {max_calls}")
+
+    # رسم نمودار ترافیک
+    print("Drawing traffic chart...")
+    plt.figure(figsize=(10, 6))
+    hourly_traffic.plot(kind='line', marker='o', color='purple', linewidth=2)
+
+    plt.title('Network Traffic by Hour (24h)')
+    plt.xlabel('Hour of Day (0-23)')
+    plt.ylabel('Number of Calls')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.xticks(range(0, 24))  # نمایش تمام ساعات زیر نمودار
+
+    # پر رنگ کردن ناحیه زیر نمودار
+    plt.fill_between(hourly_traffic.index, hourly_traffic.values, color='purple', alpha=0.1)
+
+    plt.tight_layout()
+    plt.show()
+
+
 
 if __name__ == "__main__":
     print(f'\n{RED}--- START PROGRAM ---{END}\n')
@@ -89,6 +121,7 @@ if __name__ == "__main__":
         clean_dataframe = clean_data(raw_data)
         analyze_data(clean_dataframe)
         detect_fraud(clean_dataframe)
+        analyze_peak_hours(clean_dataframe)
 
         end_time = time.time()
         print(f"\n⏱️{GREEN} Total Execution Time: {end_time - start_time:.4f} seconds.{END}")
