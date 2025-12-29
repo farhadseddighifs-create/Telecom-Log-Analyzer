@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import random
 from datetime import datetime, timedelta
 
 RED = '\033[91m'
@@ -9,45 +8,55 @@ ITALIC = '\033[3m'
 END = '\033[0m'
 
 
-def generate_large_dataset(filename, num_records=10000):
+def generate_large_dataset(filename, num_records=1000000):
     print(f"\n--- {RED}Starting data generation for {num_records} records ---{END}")
 
     end_date = datetime.now()
     start_date = end_date - timedelta(days=30)
 
-    date_list = []
-    for _ in range(num_records):
-        random_days = random.randint(0, 30)
-        random_seconds = random.randint(0, 86400)
-        random_date = start_date + timedelta(days=random_days, seconds=random_seconds)
-        date_list.append(random_date)
+    start_ts = start_date.timestamp()
+    end_ts = end_date.timestamp()
 
+    print("Generating Dates...")
+    random_timestamps = np.random.uniform(start_ts, end_ts, num_records)
+    dates = pd.to_datetime(random_timestamps, unit='s')
+
+    # 3. تولید نوع تماس (با احتمالات وزن‌دار)
+    print("Generating Call Types...")
     types = ['Internal', 'International', 'Roaming', 'Emergency']
-    call_types = random.choices(types, weights=[60, 30, 5, 5], k=num_records)
+    call_types = np.random.choice(types, size=num_records, p=[0.60, 0.30, 0.05, 0.05])
+
+    print("Generating Durations...")
     durations = np.random.randint(10, 3600, size=num_records)
 
-    data_usage = []
-    for _ in range(num_records):
-        if random.random() < 0.3:
-            data_usage.append(0.0)
-        else:
-            data_usage.append(round(random.uniform(5, 500), 2))
+    print("Generating Data Usage...")
+    usage_raw = np.random.uniform(5, 500, num_records)
+    zero_mask = np.random.random(num_records) < 0.3
 
+    data_usage = np.where(zero_mask, 0.0, usage_raw)
+    data_usage = np.round(data_usage, 2)
+
+    print("Creating DataFrame...")
     df = pd.DataFrame({
-        'Date': date_list,
+        'Date': dates,
         'Duration': durations,
         'Data_Usage': data_usage,
         'Call_Type': call_types,
     })
 
-    random_indices = np.random.choice(df.index, 5, replace=False)
+    print("Injecting Noise (Errors)...")
+    random_indices = np.random.choice(df.index, 20, replace=False)
     df.loc[random_indices, 'Duration'] = -100
 
-    random_indices_null = np.random.choice(df.index, 5, replace=False)
+    random_indices_null = np.random.choice(df.index, 20, replace=False)
     df.loc[random_indices_null, 'Data_Usage'] = np.nan
 
+    print(f"Saving to CSV ({filename})...")
     df.to_csv(filename, index=False)
+
+    file_size_mb = len(df) * 50 / (1024 * 1024)  # تخمین تقریبی حجم
     print(f"\nSUCCESSFULLY CREATED {GREEN}'{filename}'{END} WITH {GREEN}{len(df)}{END} RECORDS.")
+    print(f"{ITALIC}File size is approx {file_size_mb:.1f} MB{END}")
     print(f"\n{RED}--- Data generation complete ---{END}")
 
 

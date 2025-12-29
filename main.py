@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-import time
+import matplotlib.patheffects as path_effects
 import numpy as np
 
 RED = '\033[91m'
@@ -27,6 +27,7 @@ def clean_data(df):
     initial_count = len(df)
     df_clean = df.dropna()
     print(f"Removed {initial_count - len(df_clean)} rows with empty data.")
+
     df_negative_zero = df_clean[df_clean['Duration'] <= 0]
     df_clean = df_clean[df_clean['Duration'] > 0]
     print(f"Removed {len(df_negative_zero)} records with negative or zero duration seconds.")
@@ -54,7 +55,7 @@ def analyze_data(df):
 
     # --- اصلاح مهم: حذف Locator ثابت و استفاده از Formatter هوشمند ---
     # این تابع اعداد محور عمودی را کوتاه می‌کند (مثلاً 1000000 را تبدیل به 1M می‌کند)
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,pos: f'{x*1e-6:.0f}M'))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: f'{x * 1e-6:.0f}M'))
     # خط زیر حذف شد چون باعث کرش سیستم در داده‌های میلیونی می‌شد:
     # ax.yaxis.set_major_locator(mticker.MultipleLocator(50000))
     ax.yaxis.set_major_locator(mticker.MultipleLocator(5000000))
@@ -99,9 +100,10 @@ def analyze_peak_hours(df):
 
     busy_hour = hourly_traffic.idxmax()
     max_calls = hourly_traffic.max()
+    min_calls = hourly_traffic.min()
 
-    print(f"📈 Busiest Hour of the day: {RED}{busy_hour}:00 to {busy_hour + 1}:00{END}")
-    print(f"   Total calls in this hour: {max_calls}")
+    print(f"📈 Busiest Hour: {RED}{busy_hour}:00{END} (Calls: {max_calls})")
+    print(f"📉 Quietest Hour: {min_calls} calls")
 
     print("Drawing traffic chart...")
     plt.figure(figsize=(10, 6))
@@ -110,9 +112,14 @@ def analyze_peak_hours(df):
     plt.title('Network Traffic by Hour (24h) - 1 Million Records')
     plt.xlabel('Hour of Day (0-23)')
     plt.ylabel('Number of Calls')
-    plt.ylim(bottom=40000)
 
-    # فرمت‌دهی محور Y برای تعداد تماس‌های زیاد (مثلاً 40K)
+    data_range = max_calls - min_calls
+    if data_range > 0:
+        dynamic_bottom = max(0, min_calls - (data_range * 0.2))
+        plt.ylim(bottom=dynamic_bottom)
+    else:
+        plt.ylim(bottom=0)
+
     plt.gca().yaxis.set_major_formatter(mticker.StrMethodFormatter('{x:,.0f}'))
 
     plt.grid(True, linestyle='--', alpha=0.7)
@@ -139,27 +146,44 @@ def segment_customers(df):
     df['Segment'] = np.select(conditions, labels, default='Unknown')
     segment_counts = df['Segment'].value_counts()
 
-    print("Customer Segments Breakdown:")
-    print(segment_counts)
-
+    # رنگ‌های ملایم‌تر و مدرن‌تر
     color_map = {
-        'Gold': '#FFD700',  # کد دقیق رنگ Gold استاندارد
-        'Silver': '#C0C0C0',  # کد دقیق رنگ Silver استاندارد
-        'Bronze': '#CD7F32'  # کد رنگ برنزی (که اسم ندارد)
+        'Gold': '#FFD700',  # طلایی
+        'Silver': '#C0C0C0',  # نقره‌ای
+        'Bronze': '#CD7F32'  # برنزی
     }
+    safe_colors = [color_map.get(label, 'grey') for label in segment_counts.index]
 
-    safe_colors = [color_map[label] for label in segment_counts.index]
+    # برجسته‌سازی Gold
+    explode = [0.05 if label == 'Gold' else 0 for label in segment_counts.index]
 
     print("Drawing segmentation chart...")
     plt.figure(figsize=(8, 8))
-    explode = [0.1 if label == 'Gold' else 0 for label in segment_counts.index]
 
-    segment_counts.plot(kind='pie', autopct='%1.1f%%', startangle=140,
-                        colors=safe_colors, explode=explode, shadow=True)
+    # نکته ۱: shadow=False می‌کنیم چون می‌خواهیم سایه دستی بسازیم
+    wedges, texts, autotexts = plt.pie(
+        segment_counts,
+        labels=segment_counts.index,
+        autopct='%1.1f%%',
+        startangle=140,
+        colors=safe_colors,
+        explode=explode,
+        shadow=False,  # سایه پیش‌فرض را خاموش کنید
+        textprops={'fontsize': 12}
+    )
+
+    # نکته ۲: اضافه کردن سایه دستی و نرم به هر تکه (Wedge)
+    for w in wedges:
+        w.set_path_effects([
+            path_effects.SimplePatchShadow(offset=(3, -3), alpha=0.4, shadow_rgbFace='black'),
+            path_effects.Normal()
+        ])
 
     plt.title('Customer Segmentation (Data Usage)')
     plt.ylabel('')
-    plt.savefig('customer_segment.png', dpi=300)  # ذخیره با کیفیت بالا
+
+    plt.tight_layout()
+    plt.savefig('customer_segment.png', dpi=300)
     print(f"{GREEN}   -> Chart saved as 'customer_segment.png'{END}")
     plt.show()
 
@@ -167,17 +191,21 @@ def segment_customers(df):
 if __name__ == "__main__":
     print(f'\n{RED}--- START PROGRAM ---{END}\n')
     print(f"Processing File: {InputFile}...")
-    start_time = time.time()
 
     try:
         raw_data = load_data(InputFile)
-        clean_dataframe = clean_data(raw_data)
-        analyze_data(clean_dataframe)
-        detect_fraud(clean_dataframe)
-        analyze_peak_hours(clean_dataframe)
-        segment_customers(clean_dataframe)
 
-        print(f"\n✅{ITALIC} All analysis completed successfully.{END}")
+        if raw_data is not None:
+            clean_dataframe = clean_data(raw_data)
+            analyze_data(clean_dataframe)
+            detect_fraud(clean_dataframe)
+            analyze_peak_hours(clean_dataframe)
+            segment_customers(clean_dataframe)
+
+            print(f"\n✅{ITALIC} All analysis completed successfully.{END}")
+        else:
+            print(f"\n❌{RED} Execution stopped: Input file is missing.{END}")
+            print(f"   Please run 'data_generator.py' first.")
 
     except Exception as e:
         print(f"\n❌{RED} Critical Error: {e}{END}")
