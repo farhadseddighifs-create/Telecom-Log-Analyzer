@@ -47,9 +47,9 @@ def generate_large_dataset(filename, num_records=10000):
     df.loc[random_indices_null, 'Data_Usage'] = np.nan
 
     df.to_csv(filename, index=False)
-    print(f"\nSuccessfully created {GREEN}'{filename}'{END} with {GREEN}{len(df)}{END} records.")
+    print(f"\nSUCCESSFULLY CREATED {GREEN}'{filename}'{END} WITH {GREEN}{len(df)}{END} RECORDS.")
     print(f"\n{RED}--- Data generation complete ---{END}")
 
 
 if __name__ == "__main__":
-    generate_large_dataset('telecom_data_large.csv', num_records=10000)
+    generate_large_dataset('telecom_data_large.csv', num_records=1000000)

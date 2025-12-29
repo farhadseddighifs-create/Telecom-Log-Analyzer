@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import time
+import numpy as np
 
 RED = '\033[91m'
 GREEN = '\033[3;4;32m'
@@ -43,17 +44,25 @@ def analyze_data(df):
     usage_summary = df.groupby('Call_Type')['Data_Usage'].sum()
     print(f"usage summary: \n{usage_summary}")
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(10, 6))
     usage_summary.plot(kind='bar', color=['skyblue', 'orange', 'green', 'red'], ax=ax)
     plt.xticks(rotation=45, ha='right')
 
-    ax.set_title('Total Internet Usage by Call Type')
+    ax.set_title('Total Internet Usage by Call Type (Big Data Scale)')
     ax.set_xlabel('Call Type')
     ax.set_ylabel('Usage (MB)')
-    ax.yaxis.set_major_locator(mticker.MultipleLocator(50000))
 
-    ax.grid(axis='y', linestyle='--', alpha=0.6)
+    # --- اصلاح مهم: حذف Locator ثابت و استفاده از Formatter هوشمند ---
+    # این تابع اعداد محور عمودی را کوتاه می‌کند (مثلاً 1000000 را تبدیل به 1M می‌کند)
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x,pos: f'{x*1e-6:.0f}M'))
+    # خط زیر حذف شد چون باعث کرش سیستم در داده‌های میلیونی می‌شد:
+    # ax.yaxis.set_major_locator(mticker.MultipleLocator(50000))
+    ax.yaxis.set_major_locator(mticker.MultipleLocator(5000000))
+
+    ax.grid(axis='y', linestyle='-', alpha=0.4)
     plt.tight_layout()
+    plt.savefig('report_type_usage.png', dpi=300)  # ذخیره با کیفیت بالا
+    print(f"{GREEN}   -> Chart saved as 'report_type_usage.png'{END}")
     plt.show()
 
 
@@ -78,37 +87,81 @@ def detect_fraud(df):
     else:
         print(f"{GREEN}✅ No suspicious activity detected.{END}")
 
+
 def analyze_peak_hours(df):
     print(f"\n{GREEN}--- NETWORK TRAFFIC ANALYSIS: PEAK HOURS ---{END}")
-    df['Date']= pd.to_datetime(df['Date'])
-    df['Hour']= df['Date'].dt.hour
-    # شمارش تعداد تماس‌ها در هر ساعت
+
+    df = df.copy()
+    df['Date'] = pd.to_datetime(df['Date'])
+    df['Hour'] = df['Date'].dt.hour
+
     hourly_traffic = df.groupby('Hour').size()
 
-    # پیدا کردن شلوغ‌ترین ساعت (Busy Hour)
     busy_hour = hourly_traffic.idxmax()
     max_calls = hourly_traffic.max()
 
     print(f"📈 Busiest Hour of the day: {RED}{busy_hour}:00 to {busy_hour + 1}:00{END}")
     print(f"   Total calls in this hour: {max_calls}")
 
-    # رسم نمودار ترافیک
     print("Drawing traffic chart...")
     plt.figure(figsize=(10, 6))
     hourly_traffic.plot(kind='line', marker='o', color='purple', linewidth=2)
 
-    plt.title('Network Traffic by Hour (24h)')
+    plt.title('Network Traffic by Hour (24h) - 1 Million Records')
     plt.xlabel('Hour of Day (0-23)')
     plt.ylabel('Number of Calls')
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.xticks(range(0, 24))  # نمایش تمام ساعات زیر نمودار
+    plt.ylim(bottom=40000)
 
-    # پر رنگ کردن ناحیه زیر نمودار
+    # فرمت‌دهی محور Y برای تعداد تماس‌های زیاد (مثلاً 40K)
+    plt.gca().yaxis.set_major_formatter(mticker.StrMethodFormatter('{x:,.0f}'))
+
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.xticks(range(0, 24))
+
     plt.fill_between(hourly_traffic.index, hourly_traffic.values, color='purple', alpha=0.1)
 
     plt.tight_layout()
+    plt.savefig('report_peak_hours.png', dpi=300)  # ذخیره با کیفیت بالا
+    print(f"{GREEN}   -> Chart saved as 'report_peak_hours.png'{END}")
     plt.show()
 
+
+def segment_customers(df):
+    print(f"\n{GREEN}--- MARKETING ANALYSIS: CUSTOMER SEGMENTATION ---{END}")
+
+    conditions = [
+        (df['Data_Usage'] > 450),
+        (df['Data_Usage'] >= 200) & (df['Data_Usage'] <= 450),
+        (df['Data_Usage'] < 200)
+    ]
+    labels = ['Gold', 'Silver', 'Bronze']
+
+    df['Segment'] = np.select(conditions, labels, default='Unknown')
+    segment_counts = df['Segment'].value_counts()
+
+    print("Customer Segments Breakdown:")
+    print(segment_counts)
+
+    color_map = {
+        'Gold': '#FFD700',  # کد دقیق رنگ Gold استاندارد
+        'Silver': '#C0C0C0',  # کد دقیق رنگ Silver استاندارد
+        'Bronze': '#CD7F32'  # کد رنگ برنزی (که اسم ندارد)
+    }
+
+    safe_colors = [color_map[label] for label in segment_counts.index]
+
+    print("Drawing segmentation chart...")
+    plt.figure(figsize=(8, 8))
+    explode = [0.1 if label == 'Gold' else 0 for label in segment_counts.index]
+
+    segment_counts.plot(kind='pie', autopct='%1.1f%%', startangle=140,
+                        colors=safe_colors, explode=explode, shadow=True)
+
+    plt.title('Customer Segmentation (Data Usage)')
+    plt.ylabel('')
+    plt.savefig('customer_segment.png', dpi=300)  # ذخیره با کیفیت بالا
+    print(f"{GREEN}   -> Chart saved as 'customer_segment.png'{END}")
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -122,9 +175,9 @@ if __name__ == "__main__":
         analyze_data(clean_dataframe)
         detect_fraud(clean_dataframe)
         analyze_peak_hours(clean_dataframe)
+        segment_customers(clean_dataframe)
 
-        end_time = time.time()
-        print(f"\n⏱️{GREEN} Total Execution Time: {end_time - start_time:.4f} seconds.{END}")
+        print(f"\n✅{ITALIC} All analysis completed successfully.{END}")
 
     except Exception as e:
         print(f"\n❌{RED} Critical Error: {e}{END}")
