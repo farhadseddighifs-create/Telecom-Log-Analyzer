@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as path_effects
-import numpy as np
+from datetime import datetime, timedelta
 
-# Page Configuration
+# --- Page Configuration ---
 st.set_page_config(page_title="Telecom Analytics", page_icon="📊", layout="wide")
 
-# Custom CSS for styling
 st.markdown("""
     <style>
     .metric-card {
@@ -19,143 +19,177 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Title
 st.title("📊 Telecom Data Analysis Dashboard")
-st.markdown("Interactive dashboard based on `main.py` logic (Fraud Detection & Segmentation).")
+st.markdown(
+    "Interactive dashboard analyzing **1 Million Records** (Real-time Simulation logic synced with Data Generator).")
 
 
-# --- 1. Load & Clean Data (Logic from main.py) ---
+# --- 1. Load & Generate Data (Exact logic from data_generator.py) ---
 @st.cache_data
 def load_data():
+    """
+    Tries to load 'telecom_data_large.csv'.
+    If not found (e.g., on Hugging Face), it generates 1M records using
+    the EXACT logic from data_generator.py.
+    """
     try:
-        # اولویت با فایل اصلی (برای کامپیوتر خودتان)
-        data = pd.read_csv('telecom_data_large.csv')
+        # 1. Try Loading Local File
+        df = pd.read_csv('telecom_data_large.csv')
+        df['Date'] = pd.to_datetime(df['Date'])
+        source = "Local CSV"
+
     except FileNotFoundError:
-        try:
-            # اگر فایل اصلی نبود (در سرور آنلاین)، فایل نمونه خوانده شود
-            data = pd.read_csv('telecom_data_sample.csv')
-        except FileNotFoundError:
-            return None, 0
+        # 2. Generate Data (Fallback for Server) - Logic from data_generator.py
+        source = "Generated In-Memory"
+        num_records = 1000000
 
-    # ادامه کد قبلی...
-    data['Date'] = pd.to_datetime(data['Date'])
-    data['Hour'] = data['Date'].dt.hour
+        # Date Logic
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        start_ts = start_date.timestamp()
+        end_ts = end_date.timestamp()
 
-    initial_count = len(data)
-    data = data[data['Duration'] > 0]
-    cleaned_count = len(data)
+        random_timestamps = np.random.uniform(start_ts, end_ts, num_records)
+        dates = pd.to_datetime(random_timestamps, unit='s')
 
-    return data, initial_count - cleaned_count
+        # Call Type Logic (Weighted)
+        types = ['Internal', 'International', 'Roaming', 'Emergency']
+        call_types = np.random.choice(types, size=num_records, p=[0.60, 0.30, 0.05, 0.05])
+
+        # Duration Logic
+        durations = np.random.randint(10, 3600, size=num_records)
+
+        # Data Usage Logic (with 30% zeros)
+        usage_raw = np.random.uniform(5, 500, num_records)
+        zero_mask = np.random.random(num_records) < 0.3
+        data_usage = np.where(zero_mask, 0.0, usage_raw)
+        data_usage = np.round(data_usage, 2)
+
+        # Create DataFrame
+        df = pd.DataFrame({
+            'Date': dates,
+            'Duration': durations,
+            'Data_Usage': data_usage,
+            'Call_Type': call_types,
+        })
+
+        # Inject Noise (Exact Logic)
+        random_indices = np.random.choice(df.index, 20, replace=False)
+        df.loc[random_indices, 'Duration'] = -100
+
+        random_indices_null = np.random.choice(df.index, 20, replace=False)
+        df.loc[random_indices_null, 'Data_Usage'] = np.nan
+
+    # --- Preprocessing & Cleaning (Applied to both Loaded and Generated data) ---
+    initial_count = len(df)
+
+    # 1. Handle NaNs (from noise injection)
+    df = df.dropna(subset=['Data_Usage'])
+
+    # 2. Handle Negative Duration (from noise injection)
+    df = df[df['Duration'] > 0]
+
+    # 3. Add Hour column
+    df['Hour'] = df['Date'].dt.hour
+
+    cleaned_count = len(df)
+    removed_rows = initial_count - cleaned_count
+
+    return df, removed_rows, source
 
 
 # Execute Load
-with st.spinner('Loading and Processing Data...'):
-    df, removed_rows = load_data()
+with st.spinner('Processing 1 Million Records...'):
+    df, removed_rows, data_source = load_data()
 
+# FarhadSeddighi Telecom_log1
 if df is not None:
     # --- 2. KPI Section ---
-    st.subheader("📌 Key Performance Indicators")
+    st.subheader(f"📌 Key Performance Indicators (Source: {data_source})")
 
-    # Calculate Fraud (Logic from main.py: detect_fraud)
-    high_duration_limit = 3300
-    high_data_limit = 450
-    fraud_df = df[(df['Duration'] > high_duration_limit) | (df['Data_Usage'] > high_data_limit)]
+    # Fraud Definition
+    high_duration_limit = 3000
+    high_data_limit = 400
+    # Note: Using copy() to avoid SettingWithCopyWarning on slices
+    fraud_df = df[(df['Duration'] > high_duration_limit) | (df['Data_Usage'] > high_data_limit)].copy()
     fraud_count = len(fraud_df)
 
     # Layout Columns
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
 
-    total_records = len(df)
     total_data_tb = df['Data_Usage'].sum() / 1024 / 1024  # Convert MB to TB
 
-    kpi1.metric("Total Active Records", f"{total_records:,}", delta=f"-{removed_rows} cleaned")
+    kpi1.metric("Total Active Records", f"{len(df):,}", delta=f"-{removed_rows} noise cleaned")
     kpi2.metric("Total Data Traffic", f"{total_data_tb:.2f} TB")
     kpi3.metric("Avg Duration", f"{df['Duration'].mean():.0f} sec")
-    kpi4.metric("⚠️ Fraud/Suspicious", f"{fraud_count}", delta_color="inverse")
+    kpi4.metric("⚠️ Suspicious Activity", f"{fraud_count}", delta_color="inverse")
 
     st.divider()
 
-    # --- 3. Charts Row 1: Traffic & Call Types ---
+    # --- 3. Charts Row 1 ---
     col1, col2 = st.columns(2)
 
     with col1:
         st.subheader("📈 Hourly Network Traffic")
-        # Logic from main.py: analyze_peak_hours
         hourly_traffic = df.groupby('Hour').size()
         st.line_chart(hourly_traffic)
         st.caption("Peak traffic hours based on call frequency.")
 
     with col2:
         st.subheader("📊 Call Type Distribution")
-        # Logic from main.py: analyze_data
+        # Matches logic: Internal, International, Roaming, Emergency
         type_counts = df['Call_Type'].value_counts()
         st.bar_chart(type_counts)
-        st.caption("Volume comparison: Data vs Voice vs SMS vs International.")
+        st.caption("Volume comparison by connection type.")
 
     st.divider()
 
-    # --- 4. Advanced Analysis: Segmentation & Fraud ---
+    # --- 4. Advanced Analysis ---
     col3, col4 = st.columns([1, 2])
 
     with col3:
-        st.subheader("🍰 Customer Segmentation")
+        st.subheader("🍰 Usage Segmentation")
 
-        # LOGIC from main.py: segment_customers
+        # Segmentation Logic
         conditions = [
-            (df['Data_Usage'] > 450),
-            (df['Data_Usage'] >= 200) & (df['Data_Usage'] <= 450),
-            (df['Data_Usage'] < 200)
+            (df['Data_Usage'] > 300),
+            (df['Data_Usage'] >= 100) & (df['Data_Usage'] <= 300),
+            (df['Data_Usage'] < 100)
         ]
-        labels = ['Gold', 'Silver', 'Bronze']
+        labels = ['High User', 'Medium User', 'Low User']
         df['Segment'] = np.select(conditions, labels, default='Unknown')
         segment_counts = df['Segment'].value_counts()
 
-        # Replicating matplotlib chart from main.py to keep style consistency
+        # Pie Chart
         fig, ax = plt.subplots(figsize=(6, 6))
-
-        color_map = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
-        colors = [color_map.get(label, 'grey') for label in segment_counts.index]
-        explode = [0.05 if label == 'Gold' else 0 for label in segment_counts.index]
+        # Custom colors for segments
+        colors = ['#ff9999', '#66b3ff', '#99ff99']
 
         wedges, texts, autotexts = ax.pie(
             segment_counts, labels=segment_counts.index, autopct='%1.1f%%',
-            startangle=140, colors=colors, explode=explode, shadow=False
+            startangle=140, colors=colors, shadow=False
         )
 
-        # Apply shadow effect
+        # Styling pie chart text
+        plt.setp(autotexts, size=10, weight="bold", color="white")
         for w in wedges:
-            w.set_path_effects([
-                path_effects.SimplePatchShadow(offset=(2, -2), alpha=0.4, shadow_rgbFace='black'),
-                path_effects.Normal()
-            ])
+            w.set_path_effects([path_effects.SimplePatchShadow(), path_effects.Normal()])
 
         st.pyplot(fig)
-        st.caption("Gold: >450MB | Silver: 200-450MB | Bronze: <200MB")
+        st.caption("Segments based on Data Usage (MB)")
 
     with col4:
-        st.subheader("🚨 Fraud Detection Report")
-        st.warning(
-            f"Displaying top suspicious records (Duration > {high_duration_limit}s OR Data > {high_data_limit}MB)")
+        st.subheader("🚨 Anomaly Report")
+        st.info(f"Showing top records exceeding {high_duration_limit}s duration OR {high_data_limit}MB data.")
 
         if not fraud_df.empty:
-            # Show interactive table for fraud
             st.dataframe(
-                fraud_df[['Date', 'Call_Type', 'Duration', 'Data_Usage']].sort_values(by='Data_Usage',
-                                                                                      ascending=False).head(100),
-                use_container_width=True,
-                height=300
-            )
-
-            # Download Button for Fraud Report
-            csv = fraud_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Suspicious Report (CSV)",
-                data=csv,
-                file_name='suspicious_report_dashboard.csv',
-                mime='text/csv',
+                fraud_df[['Date', 'Call_Type', 'Duration', 'Data_Usage', 'Hour']].
+                sort_values(by='Data_Usage', ascending=False).head(100),
+                height=300, use_container_width=True
             )
         else:
-            st.success("No suspicious activity detected.")
+            st.success("No anomalies detected.")
 
 else:
-    st.error("Error: 'telecom_data_large.csv' not found. Please run data_generator.py first.")
+    st.error("Error loading data.")

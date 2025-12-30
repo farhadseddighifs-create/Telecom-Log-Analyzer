@@ -61,4 +61,4 @@ def generate_large_dataset(filename, num_records=1000000):
 
 
 if __name__ == "__main__":
-    generate_large_dataset('telecom_data_large.csv', num_records=1000000)
+    generate_large_dataset('telecom_data_sample.csv', num_records=1000000)
