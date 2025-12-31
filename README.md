@@ -1,17 +1,39 @@
-# Telecom Log Analyzer
+# 📡 Telecom Log Analyzer & Fraud Detection
 
-## Overview
-This project is an advanced data analysis tool for telecommunication log files. It processes a large dataset (1 million records) of call logs to clean data, detect anomalies, and derive actionable business insights. The analysis is performed using Python with Pandas, NumPy, and Matplotlib libraries.
+A professional data analysis dashboard designed for Telecommunication Engineers to simulate, visualize, and audit network traffic logs. This project transforms raw CSV logs into actionable insights using Python.
 
-## Key Features
-1.  **Data Cleaning & Preparation:** Handles large datasets, removes corrupted entries (e.g., negative call durations, null values), and prepares the data for analysis.
-2.  **Fraud Detection:** Implements a security module to identify suspicious activities based on unusually long call durations or high data usage, and generates a report of potential fraud cases.
-3.  **Customer & Network Analysis:**
-    *   **Customer Segmentation:** Categorizes customers into Gold, Silver, and Bronze tiers based on their data usage.
-    *   **Peak Hour Analysis:** Identifies the busiest and quietest hours of network traffic to help with resource management.
-    *   **Usage Insights:** Visualizes total data consumption by call type (Internal, International, etc.).
+## 🔗 Live Demo
+🚀 **[Click here to view the Interactive Dashboard](https://telecom-log-analyzer-vwubvxeavlszgbh5mk6m6t.streamlit.app/)**
 
-## How to Run
-1.  Ensure you have Python and the required libraries installed.
+---
+
+## 🎯 Project Overview
+In the telecom industry, analyzing call detail records (CDRs) is crucial for network optimization and revenue assurance. This tool provides:
+1.  **Data Simulation:** Generates synthetic telecom logs (Voice calls, Data usage, Roaming, etc.).
+2.  **Traffic Analysis:** Identifies peak hours and busiest network times.
+3.  **Fraud Detection:** Automatically flags suspicious activities based on specific thresholds (e.g., Long duration calls > 55 mins or High Data Usage).
+4.  **Reporting:** detailed CSV exports for audit teams.
+
+## 🛠 Tech Stack
+*   **Core Logic:** Python 3.x
+*   **Data Processing:** Pandas, NumPy
+*   **Visualization:** Matplotlib
+*   **Web Framework:** Streamlit
+*   **Deployment:** Streamlit Cloud
+
+## 📊 Key Features
+*   **Executive Dashboard:** Real-time KPIs for Total Calls, Data Volume (GB), and Risk Alerts.
+*   **Interactive Controls:** Users can regenerate datasets and adjust fraud detection thresholds dynamically.
+*   **Visual Analytics:**
+    *   *Usage by Call Type* (International, Roaming, Internal).
+    *   *24-Hour Network Load* (identifying peak traffic hours).
+*   **Security Audit:** A dedicated tab to filter and download lists of potential fraudulent users.
+
+## 🚀 How to Run Locally
+
+If you want to run this dashboard on your own machine:
+
+1.  **Clone the repository:**
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/farhadseddighifs-create/Telecom-Log-Analyzer.git
+cd Telecom-Log-Analyzer
