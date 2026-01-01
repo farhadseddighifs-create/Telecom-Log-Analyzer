@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import matplotlib.patheffects as path_effects
-import seaborn as sns
 
 # --- تنظیمات صفحه ---
 st.set_page_config(page_title="Telecom Audit Dashboard", layout="wide", page_icon="📡")
