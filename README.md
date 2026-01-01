@@ -28,6 +28,7 @@ In the telecom industry, analyzing call detail records (CDRs) is crucial for net
     *   *Usage by Call Type* (International, Roaming, Internal).
     *   *24-Hour Network Load* (identifying peak traffic hours).
 *   **Security Audit:** A dedicated tab to filter and download lists of potential fraudulent users.
+*   **Interactive Sidebar Filtering:** Users can filter real-time data by Call Type (International, Roaming, etc.), dynamically updating all charts and KPIs.
 
 ## 🚀 How to Run Locally
 
