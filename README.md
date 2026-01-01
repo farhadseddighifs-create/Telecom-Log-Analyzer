@@ -1,40 +1,48 @@
-# 📡 Telecom Log Analyzer & Fraud Detection
+# 📡 Telecom Log Analyzer (SaaS Web App)
 
-A professional data analysis dashboard designed for Telecommunication Engineers to simulate, visualize, and audit network traffic logs. This project transforms raw CSV logs into actionable insights using Python.
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+![Streamlit](https://img.shields.io/badge/Streamlit-App-ff4b4b)
+![Status](https://img.shields.io/badge/Status-Live-success)
+
+A professional data analysis dashboard designed to process telecommunication logs, detect fraud, and visualize network traffic patterns. Now deployed as a **SaaS Web Application** allowing users to upload and analyze their own datasets.
 
 ## 🔗 Live Demo
-🚀 **[Click here to view the Interactive Dashboard](https://telecom-log-analyzer-vwubvxeavlszgbh5mk6m6t.streamlit.app/)**
+👉 **[Click here to view the Live App](LNK_APP_KHOD_RA_INJA_BEZARID)**
 
 ---
 
-## 🎯 Project Overview
-In the telecom industry, analyzing call detail records (CDRs) is crucial for network optimization and revenue assurance. This tool provides:
-1.  **Data Simulation:** Generates synthetic telecom logs (Voice calls, Data usage, Roaming, etc.).
-2.  **Traffic Analysis:** Identifies peak hours and busiest network times.
-3.  **Fraud Detection:** Automatically flags suspicious activities based on specific thresholds (e.g., Long duration calls > 55 mins or High Data Usage).
-4.  **Reporting:** detailed CSV exports for audit teams.
+## 🚀 Key Features
+
+### 1. 📂 Interactive Data Loading (SaaS Ready)
+*   **File Uploader:** Users can upload their own `.csv` files directly via the sidebar.
+*   **Smart Validation:** The app automatically cleans data, removing empty rows and invalid durations (negative values).
+*   **Demo Mode:** If no file is uploaded, the app generates 200,000 realistic records for demonstration.
+
+### 2. 📊 Dynamic Visualizations
+*   **Traffic Analysis:** Line charts showing peak hours with dynamic scaling.
+*   **Usage Distribution:** Bar charts showing data usage by Call Type (Internal, International, Roaming).
+*   **Segmentation:** Pie charts categorizing users into Gold, Silver, and Bronze segments based on usage.
+
+### 3. 🛡️ Fraud Detection System
+*   **Automatic Flagging:** Identifies suspicious records based on logic:
+    *   Duration > 55 mins (3300s)
+    *   Data Usage > 450 MB
+*   **Security Report:** Displays a filtered dataframe of potential fraud cases.
+
+---
 
 ## 🛠 Tech Stack
-*   **Core Logic:** Python 3.x
+*   **Core:** Python 3.11
 *   **Data Processing:** Pandas, NumPy
-*   **Visualization:** Matplotlib
+*   **Visualization:** Matplotlib (Custom Tickers, Path Effects)
 *   **Web Framework:** Streamlit
 *   **Deployment:** Streamlit Cloud
 
-## 📊 Key Features
-*   **Executive Dashboard:** Real-time KPIs for Total Calls, Data Volume (GB), and Risk Alerts.
-*   **Interactive Controls:** Users can regenerate datasets and adjust fraud detection thresholds dynamically.
-*   **Visual Analytics:**
-    *   *Usage by Call Type* (International, Roaming, Internal).
-    *   *24-Hour Network Load* (identifying peak traffic hours).
-*   **Security Audit:** A dedicated tab to filter and download lists of potential fraudulent users.
-*   **Interactive Sidebar Filtering:** Users can filter real-time data by Call Type (International, Roaming, etc.), dynamically updating all charts and KPIs.
+---
 
-## 🚀 How to Run Locally
+## 💻 How to Run Locally
 
-If you want to run this dashboard on your own machine:
-
-1.  **Clone the repository:**
+1. **Clone the repository:**
 ```bash
-git clone https://github.com/farhadseddighifs-create/Telecom-Log-Analyzer.git
-cd Telecom-Log-Analyzer
+   git clone https://github.com/farhadseddighifs-create/Telecom-Log-Analyzer.git
+   cd Telecom-Log-Analyzer
