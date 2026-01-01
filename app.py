@@ -78,6 +78,38 @@ else:
     st.sidebar.info("ℹ️ Using DEMO DATA (Simulated Big Data Scale - 30 Days).")
     df = load_demo_data()
 
+# ========================================================
+# شروع بخش جدید: فیلترینگ هوشمند
+# ========================================================
+st.sidebar.markdown("---")
+st.sidebar.header("🔍 Filter Options")
+
+# ۱. استخراج لیست انواع تماس موجود در فایل
+available_types = df['Call_Type'].unique()
+
+# ۲. ساخت ویجت انتخاب (Multiselect)
+selected_types = st.sidebar.multiselect(
+    "Select Call Types:",
+    options=available_types,
+    default=available_types  # پیش‌فرض: همه انتخاب شده باشند
+)
+
+# ۳. اعمال فیلتر روی دیتافریم اصلی (df)
+if not selected_types:
+    st.error("⚠️ Please select at least one Call Type from the sidebar.")
+    st.stop()  # اگر کاربر همه تیک‌ها را برداشت، اجرای برنامه متوقف شود
+else:
+    # فیلتر کردن دیتافریم اصلی بر اساس انتخاب کاربر
+    # نکته آموزشی: استفاده از isin برای فیلتر چندگانه
+    df = df[df['Call_Type'].isin(selected_types)]
+
+    # نمایش تعداد رکوردهای باقی‌مانده در سایدبار
+    st.sidebar.write(f"📊 Active Records: {len(df):,}")
+# ========================================================
+# پایان بخش فیلترینگ
+# ========================================================
+
+
 # --- محاسبات سگمنت‌بندی ---
 # آستانه‌ها را با توجه به اسکیل دیتا تنظیم می‌کنیم
 conditions = [
@@ -114,28 +146,29 @@ with tab1:
         usage_summary = df.groupby('Call_Type')['Data_Usage'].sum()
 
         fig1, ax1 = plt.subplots(figsize=(8, 6))
-        usage_summary.plot(kind='bar', color=['skyblue', 'orange', 'green', 'red'], ax=ax1)
+        # نکته: اگر بعد از فیلتر دیتا خالی باشد هندل می‌شود
+        if not usage_summary.empty:
+            usage_summary.plot(kind='bar', color=['skyblue', 'orange', 'green', 'red'][:len(usage_summary)], ax=ax1)
 
-        # فرمت محور Y: نمایش به صورت میلیون (M)
-        ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: f'{x * 1e-6:.0f}M'))
+            # فرمت محور Y: نمایش به صورت میلیون (M)
+            ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: f'{x * 1e-6:.0f}M'))
 
-        # تنظیم خطوط افقی: تلاش برای تقسیم‌بندی تمیز
-        # حدود ماکسیمم دیتا را می‌گیریم تا فاصله خطوط را داینامیک تنظیم کنیم
-        y_max = usage_summary.max()
-        if y_max > 0:
-            # فاصله خطوط را طوری می‌گیریم که حدود 5 تا خط داشته باشیم
-            locator_step = y_max / 5
-            ax1.yaxis.set_major_locator(mticker.MultipleLocator(locator_step))
+            y_max = usage_summary.max()
+            if y_max > 0:
+                locator_step = y_max / 5
+                ax1.yaxis.set_major_locator(mticker.MultipleLocator(locator_step))
 
-        ax1.set_ylabel('Usage (MB)')
-        ax1.grid(axis='y', linestyle='-', alpha=0.4)
-        plt.xticks(rotation=45)
-        st.pyplot(fig1)
+            ax1.set_ylabel('Usage (MB)')
+            ax1.grid(axis='y', linestyle='-', alpha=0.4)
+            plt.xticks(rotation=45)
+            st.pyplot(fig1)
+        else:
+            st.warning("No data available for selected filter.")
 
     # --- نمودار ۲: ترافیک شبکه (ساعت پیک) ---
     with col_chart2:
         st.subheader("Network Traffic (Peak Hours Analysis)")
-        if 'Date' in df.columns:
+        if 'Date' in df.columns and not df.empty:
             df['Hour'] = df['Date'].dt.hour
             # شمارش تعداد تماس در هر ساعت از شبانه‌روز (تجمیع ۳۰ روز)
             hourly_counts = df.groupby('Hour').size()
@@ -156,6 +189,8 @@ with tab1:
             ax2.set_xlabel("Hour of Day (0-23)")
             ax2.set_xticks(range(0, 24, 2))  # نمایش ساعت‌ها به صورت زوج
             st.pyplot(fig2)
+        else:
+            st.warning("Not enough data for traffic analysis.")
 
     # --- ردیف دوم: نمودار دایره‌ای ---
     st.markdown("---")
@@ -165,23 +200,26 @@ with tab1:
         st.subheader("Customer Segmentation")
         segment_counts = df['Segment'].value_counts()
 
-        color_map = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
-        safe_colors = [color_map.get(l, 'grey') for l in segment_counts.index]
-        explode = [0.05 if l == 'Gold' else 0 for l in segment_counts.index]
+        if not segment_counts.empty:
+            color_map = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
+            safe_colors = [color_map.get(l, 'grey') for l in segment_counts.index]
+            explode = [0.05 if l == 'Gold' else 0 for l in segment_counts.index]
 
-        fig3, ax3 = plt.subplots(figsize=(8, 8))
-        wedges, texts, autotexts = ax3.pie(
-            segment_counts, labels=segment_counts.index, autopct='%1.1f%%',
-            startangle=140, colors=safe_colors, explode=explode, shadow=False
-        )
+            fig3, ax3 = plt.subplots(figsize=(8, 8))
+            wedges, texts, autotexts = ax3.pie(
+                segment_counts, labels=segment_counts.index, autopct='%1.1f%%',
+                startangle=140, colors=safe_colors, explode=explode, shadow=False
+            )
 
-        for w in wedges:
-            w.set_path_effects([
-                path_effects.SimplePatchShadow(offset=(3, -3), alpha=0.4, shadow_rgbFace='black'),
-                path_effects.Normal()
-            ])
+            for w in wedges:
+                w.set_path_effects([
+                    path_effects.SimplePatchShadow(offset=(3, -3), alpha=0.4, shadow_rgbFace='black'),
+                    path_effects.Normal()
+                ])
 
-        st.pyplot(fig3)
+            st.pyplot(fig3)
+        else:
+            st.info("No segments found.")
 
 with tab2:
     st.subheader("Suspicious Activity Report")
