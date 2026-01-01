@@ -4,11 +4,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import matplotlib.patheffects as path_effects
+from datetime import datetime, timedelta
 
 # --- تنظیمات صفحه ---
 st.set_page_config(page_title="Telecom Audit Dashboard", layout="wide", page_icon="📡")
 
-# --- استایل CSS سفارشی ---
+# --- استایل CSS ---
 st.markdown("""
     <style>
     .main { background-color: #f5f5f5; }
@@ -17,26 +18,42 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- تابع تولید داده دمو (شبیه‌سازی بیگ دیتا) ---
+# --- تابع تولید داده (اصلاح شده: شبیه سازی دقیق بیگ دیتا) ---
 @st.cache_data
 def load_demo_data():
-    # تولید 10,000 رکورد نمونه
-    dates = pd.date_range(end=pd.Timestamp.now(), periods=10000, freq='h')
+    # تعداد رکوردها: 200 هزار (کافی برای نمایش گرافیک دقیق و سبک برای سرور)
+    num_records = 200000
 
-    # شبیه‌سازی مقادیر مشابه فایل اصلی
-    data = {
+    # 1. تولید زمان‌های تصادفی در 30 روز گذشته (برای شکل‌گیری صحیح نمودار ساعت)
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+    start_ts = start_date.timestamp()
+    end_ts = end_date.timestamp()
+
+    random_timestamps = np.random.uniform(start_ts, end_ts, num_records)
+    dates = pd.to_datetime(random_timestamps, unit='s')
+
+    # 2. تولید مقادیر
+    # ضریب 5: چون تعداد 200هزارتاست (یک پنجم 1 میلیون)، دیتا را 5 برابر می‌کنیم تا اعداد محورها مثل فایل اصلی باشد
+    data_usage = np.random.uniform(5, 500, num_records) * 5
+
+    # 3. توزیع وزن‌دار انواع تماس (مثل فایل اصلی)
+    types = ['Internal', 'International', 'Roaming', 'Emergency']
+    call_types = np.random.choice(types, num_records, p=[0.6, 0.3, 0.05, 0.05])
+
+    df = pd.DataFrame({
         'Date': dates,
-        'Duration': np.random.randint(10, 3600, 10000),
-        # ضرب در 1000 برای اینکه جمع کل شبیه فایل 1 میلیونی شود (برای تست محور نمودار)
-        'Data_Usage': np.random.uniform(5, 500, 10000) * 100,
-        'Call_Type': np.random.choice(['Internal', 'International', 'Roaming', 'Emergency'], 10000,
-                                      p=[0.6, 0.3, 0.05, 0.05])
-    }
-    df = pd.DataFrame(data)
+        'Duration': np.random.randint(10, 3600, num_records),
+        'Data_Usage': data_usage,
+        'Call_Type': call_types
+    })
 
-    # ایجاد نویز و تقلب
-    df.loc[0:50, 'Duration'] = 4000
-    df.loc[0:50, 'Data_Usage'] = 60000  # مقدار بالا برای تقلب
+    # اضافه کردن نویز برای تشخیص تقلب
+    # رکوردهای با مدت زمان و مصرف بسیار بالا
+    fraud_indices = np.random.choice(df.index, 50, replace=False)
+    df.loc[fraud_indices, 'Duration'] = 4000
+    df.loc[fraud_indices, 'Data_Usage'] = df.loc[fraud_indices, 'Data_Usage'] * 10
+
     return df
 
 
@@ -58,14 +75,15 @@ if uploaded_file is not None:
         st.sidebar.error(f"Error loading file: {e}")
         st.stop()
 else:
-    st.sidebar.info("ℹ️ Using DEMO DATA (Simulated Big Data Scale).")
+    st.sidebar.info("ℹ️ Using DEMO DATA (Simulated Big Data Scale - 30 Days).")
     df = load_demo_data()
 
-# --- محاسبات سگمنت‌بندی (Gold/Silver/Bronze) ---
+# --- محاسبات سگمنت‌بندی ---
+# آستانه‌ها را با توجه به اسکیل دیتا تنظیم می‌کنیم
 conditions = [
-    (df['Data_Usage'] > 450),  # طبق لاجیک main.py
-    (df['Data_Usage'] >= 200) & (df['Data_Usage'] <= 450),
-    (df['Data_Usage'] < 200)
+    (df['Data_Usage'] > 2000),  # مقادیر به دلیل ضریب 5 تغییر کرده‌اند تا نمودار دایره‌ای درست دربیاید
+    (df['Data_Usage'] >= 1000) & (df['Data_Usage'] <= 2000),
+    (df['Data_Usage'] < 1000)
 ]
 labels = ['Gold', 'Silver', 'Bronze']
 df['Segment'] = np.select(conditions, labels, default='Unknown')
@@ -75,12 +93,12 @@ st.markdown("---")
 col1, col2, col3, col4 = st.columns(4)
 
 total_calls = len(df)
-total_usage = df['Data_Usage'].sum()
+total_usage_mb = df['Data_Usage'].sum()
 avg_duration = df['Duration'].mean()
 fraud_count = len(df[(df['Duration'] > 3300)])
 
 col1.metric("Total Calls", f"{total_calls:,}")
-col2.metric("Total Data", f"{total_usage / 1e6:.2f} TB")  # نمایش به ترابایت برای اعداد بزرگ
+col2.metric("Total Data", f"{total_usage_mb / 1e6:.1f} TB")
 col3.metric("Avg Duration", f"{avg_duration:.0f} sec")
 col4.metric("Fraud Alerts", f"{fraud_count}", delta_color="inverse")
 
@@ -88,10 +106,9 @@ col4.metric("Fraud Alerts", f"{fraud_count}", delta_color="inverse")
 tab1, tab2, tab3 = st.tabs(["📊 Traffic Analysis", "🚨 Fraud Detection", "📂 Raw Data"])
 
 with tab1:
-    # ردیف اول: دو نمودار (میله‌ای و خطی)
     col_chart1, col_chart2 = st.columns(2)
 
-    # --- نمودار ۱: مصرف دیتا (با محور 5M دقیق) ---
+    # --- نمودار ۱: مصرف دیتا (میله‌ای) ---
     with col_chart1:
         st.subheader("Total Internet Usage by Call Type")
         usage_summary = df.groupby('Call_Type')['Data_Usage'].sum()
@@ -99,26 +116,34 @@ with tab1:
         fig1, ax1 = plt.subplots(figsize=(8, 6))
         usage_summary.plot(kind='bar', color=['skyblue', 'orange', 'green', 'red'], ax=ax1)
 
-        # *** اعمال تنظیمات دقیق main.py ***
+        # فرمت محور Y: نمایش به صورت میلیون (M)
         ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: f'{x * 1e-6:.0f}M'))
-        ax1.yaxis.set_major_locator(mticker.MultipleLocator(5000000))  # فاصله دقیق 5 میلیونی
+
+        # تنظیم خطوط افقی: تلاش برای تقسیم‌بندی تمیز
+        # حدود ماکسیمم دیتا را می‌گیریم تا فاصله خطوط را داینامیک تنظیم کنیم
+        y_max = usage_summary.max()
+        if y_max > 0:
+            # فاصله خطوط را طوری می‌گیریم که حدود 5 تا خط داشته باشیم
+            locator_step = y_max / 5
+            ax1.yaxis.set_major_locator(mticker.MultipleLocator(locator_step))
 
         ax1.set_ylabel('Usage (MB)')
         ax1.grid(axis='y', linestyle='-', alpha=0.4)
         plt.xticks(rotation=45)
         st.pyplot(fig1)
 
-    # --- نمودار ۲: پیک ترافیک (با زوم دینامیک) ---
+    # --- نمودار ۲: ترافیک شبکه (ساعت پیک) ---
     with col_chart2:
-        st.subheader("Network Traffic (24h Peak Analysis)")
+        st.subheader("Network Traffic (Peak Hours Analysis)")
         if 'Date' in df.columns:
             df['Hour'] = df['Date'].dt.hour
+            # شمارش تعداد تماس در هر ساعت از شبانه‌روز (تجمیع ۳۰ روز)
             hourly_counts = df.groupby('Hour').size()
 
             fig2, ax2 = plt.subplots(figsize=(8, 6))
             hourly_counts.plot(kind='line', marker='o', color='purple', linewidth=2, ax=ax2)
 
-            # تنظیم کف نمودار (Dynamic Bottom) طبق main.py
+            # تنظیم کف نمودار برای برجسته شدن نوسانات
             max_calls = hourly_counts.max()
             min_calls = hourly_counts.min()
             data_range = max_calls - min_calls
@@ -128,15 +153,16 @@ with tab1:
 
             ax2.yaxis.set_major_formatter(mticker.StrMethodFormatter('{x:,.0f}'))
             ax2.grid(True, linestyle='--', alpha=0.7)
-            ax2.set_xlabel("Hour of Day")
+            ax2.set_xlabel("Hour of Day (0-23)")
+            ax2.set_xticks(range(0, 24, 2))  # نمایش ساعت‌ها به صورت زوج
             st.pyplot(fig2)
 
-    # --- ردیف دوم: نمودار دایره‌ای (سگمنت‌ها) ---
+    # --- ردیف دوم: نمودار دایره‌ای ---
     st.markdown("---")
-    col_chart3, col_spacer = st.columns([1, 1])  # ستون دوم خالی باشد تا نمودار خیلی بزرگ نشود
+    col_chart3, col_spacer = st.columns([1, 1])
 
     with col_chart3:
-        st.subheader("Customer Segmentation (Data Usage)")
+        st.subheader("Customer Segmentation")
         segment_counts = df['Segment'].value_counts()
 
         color_map = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
@@ -149,7 +175,6 @@ with tab1:
             startangle=140, colors=safe_colors, explode=explode, shadow=False
         )
 
-        # افکت سایه (Shadow Effect) طبق کد main.py
         for w in wedges:
             w.set_path_effects([
                 path_effects.SimplePatchShadow(offset=(3, -3), alpha=0.4, shadow_rgbFace='black'),
@@ -160,12 +185,10 @@ with tab1:
 
 with tab2:
     st.subheader("Suspicious Activity Report")
-    st.markdown("Thresholds: **Duration > 55 mins**")
-
     fraud_df = df[(df['Duration'] > 3300)]
 
     if not fraud_df.empty:
-        st.error(f"⚠️ Found {len(fraud_df)} suspicious records.")
+        st.error(f"⚠️ Found {len(fraud_df)} suspicious records (Duration > 55 min).")
         st.dataframe(fraud_df.head(200).style.highlight_max(axis=0, color='pink'))
     else:
         st.success("✅ Clean Network Status.")
