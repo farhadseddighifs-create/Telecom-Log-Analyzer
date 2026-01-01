@@ -6,230 +6,197 @@ import matplotlib.ticker as mticker
 import matplotlib.patheffects as path_effects
 from datetime import datetime, timedelta
 
-# --- تنظیمات صفحه ---
-st.set_page_config(page_title="Telecom Audit Dashboard", layout="wide", page_icon="📡")
+# --- 1. CONFIGURATION & SETUP ---
+st.set_page_config(page_title="Telecom Log Analyzer", layout="wide", page_icon="📡")
 
-# --- استایل CSS ---
+# Custom CSS for professional styling
 st.markdown("""
     <style>
     .main { background-color: #f5f5f5; }
-    .stMetric { background-color: white; padding: 15px; border-radius: 10px; box-shadow: 2px 2px 5px #ccc; }
+    .stMetric {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 
-# --- تابع تولید داده (اصلاح شده: شبیه سازی دقیق بیگ دیتا) ---
+# --- 2. HELPER FUNCTIONS ---
+
 @st.cache_data
-def load_demo_data():
-    # تعداد رکوردها: 200 هزار (کافی برای نمایش گرافیک دقیق و سبک برای سرور)
-    num_records = 200000
-
-    # 1. تولید زمان‌های تصادفی در 30 روز گذشته (برای شکل‌گیری صحیح نمودار ساعت)
+def generate_random_data():
+    """Generates demo data if no file is uploaded."""
+    # Generate dates for the last 30 days
     end_date = datetime.now()
     start_date = end_date - timedelta(days=30)
+
+    # 200,000 records
+    num_records = 200000
+
+    # Random timestamps
     start_ts = start_date.timestamp()
     end_ts = end_date.timestamp()
-
     random_timestamps = np.random.uniform(start_ts, end_ts, num_records)
     dates = pd.to_datetime(random_timestamps, unit='s')
 
-    # 2. تولید مقادیر
-    # ضریب 5: چون تعداد 200هزارتاست (یک پنجم 1 میلیون)، دیتا را 5 برابر می‌کنیم تا اعداد محورها مثل فایل اصلی باشد
-    data_usage = np.random.uniform(5, 500, num_records) * 5
-
-    # 3. توزیع وزن‌دار انواع تماس (مثل فایل اصلی)
+    # Random attributes
     types = ['Internal', 'International', 'Roaming', 'Emergency']
-    call_types = np.random.choice(types, num_records, p=[0.6, 0.3, 0.05, 0.05])
+    call_types = np.random.choice(types, size=num_records, p=[0.60, 0.30, 0.05, 0.05])
+    durations = np.random.randint(10, 3600, size=num_records)
+    usage_raw = np.random.uniform(5, 500, num_records)
+    zero_mask = np.random.random(num_records) < 0.3
+    data_usage = np.where(zero_mask, 0.0, usage_raw)
 
-    df = pd.DataFrame({
+    return pd.DataFrame({
         'Date': dates,
-        'Duration': np.random.randint(10, 3600, num_records),
-        'Data_Usage': data_usage,
+        'Duration': durations,
+        'Data_Usage': np.round(data_usage, 2),
         'Call_Type': call_types
     })
 
-    # اضافه کردن نویز برای تشخیص تقلب
-    # رکوردهای با مدت زمان و مصرف بسیار بالا
-    fraud_indices = np.random.choice(df.index, 50, replace=False)
-    df.loc[fraud_indices, 'Duration'] = 4000
-    df.loc[fraud_indices, 'Data_Usage'] = df.loc[fraud_indices, 'Data_Usage'] * 10
 
-    return df
-
-
-# --- تیتر ---
-st.title("📡 Telecom Network Log Analyzer")
-st.markdown("Upload your CSV log file to detect fraud and analyze traffic patterns.")
-
-# --- نوار کناری ---
-st.sidebar.header("📂 Data Configuration")
-uploaded_file = st.sidebar.file_uploader("Upload CSV Log File", type=["csv"])
-
-# --- بارگذاری داده ---
-if uploaded_file is not None:
+def load_data(uploaded_file):
+    """Loads, validates, and cleans user uploaded CSV."""
     try:
         df = pd.read_csv(uploaded_file)
+
+        # 1. Check Columns
+        required_cols = {'Date', 'Duration', 'Data_Usage', 'Call_Type'}
+        if not required_cols.issubset(df.columns):
+            return None, f"Missing columns! File must contain: {', '.join(required_cols)}"
+
+        # 2. Data Cleaning (Similar to main.py logic)
+        # Drop empty rows
+        df = df.dropna()
+
+        # Filter negative/zero duration (Logic from main.py)
+        df = df[df['Duration'] > 0]
+
+        # 3. Type Conversion
         df['Date'] = pd.to_datetime(df['Date'])
-        st.sidebar.success("✅ File Uploaded Successfully!")
+
+        return df, None
     except Exception as e:
-        st.sidebar.error(f"Error loading file: {e}")
+        return None, str(e)
+
+
+# --- 3. SIDEBAR CONTROLS ---
+st.sidebar.header("🔧 Control Panel")
+
+# A. File Uploader
+uploaded_file = st.sidebar.file_uploader("📂 Upload CSV File", type=["csv"])
+
+# B. Data Loading Logic
+if uploaded_file is not None:
+    df, error_msg = load_data(uploaded_file)
+    if error_msg:
+        st.error(f"Error loading file: {error_msg}")
         st.stop()
+    else:
+        st.sidebar.success(f"✅ Loaded {len(df):,} records!")
+        data_source = "User Uploaded Data"
 else:
-    st.sidebar.info("ℹ️ Using DEMO DATA (Simulated Big Data Scale - 30 Days).")
-    df = load_demo_data()
+    df = generate_random_data()
+    data_source = "Demo Data (Randomly Generated)"
 
-# ========================================================
-# شروع بخش جدید: فیلترینگ هوشمند
-# ========================================================
+# C. Filtering
 st.sidebar.markdown("---")
-st.sidebar.header("🔍 Filter Options")
+st.sidebar.subheader("🔍 Filter Data")
+all_types = df['Call_Type'].unique().tolist()
+selected_types = st.sidebar.multiselect("Select Call Types:", all_types, default=all_types)
 
-# ۱. استخراج لیست انواع تماس موجود در فایل
-available_types = df['Call_Type'].unique()
-
-# ۲. ساخت ویجت انتخاب (Multiselect)
-selected_types = st.sidebar.multiselect(
-    "Select Call Types:",
-    options=available_types,
-    default=available_types  # پیش‌فرض: همه انتخاب شده باشند
-)
-
-# ۳. اعمال فیلتر روی دیتافریم اصلی (df)
 if not selected_types:
-    st.error("⚠️ Please select at least one Call Type from the sidebar.")
-    st.stop()  # اگر کاربر همه تیک‌ها را برداشت، اجرای برنامه متوقف شود
-else:
-    # فیلتر کردن دیتافریم اصلی بر اساس انتخاب کاربر
-    # نکته آموزشی: استفاده از isin برای فیلتر چندگانه
-    df = df[df['Call_Type'].isin(selected_types)]
+    st.warning("Please select at least one Call Type from the sidebar.")
+    st.stop()
 
-    # نمایش تعداد رکوردهای باقی‌مانده در سایدبار
-    st.sidebar.write(f"📊 Active Records: {len(df):,}")
-# ========================================================
-# پایان بخش فیلترینگ
-# ========================================================
+# Apply Filter
+filtered_df = df[df['Call_Type'].isin(selected_types)]
 
-
-# --- محاسبات سگمنت‌بندی ---
-# آستانه‌ها را با توجه به اسکیل دیتا تنظیم می‌کنیم
-conditions = [
-    (df['Data_Usage'] > 2000),  # مقادیر به دلیل ضریب 5 تغییر کرده‌اند تا نمودار دایره‌ای درست دربیاید
-    (df['Data_Usage'] >= 1000) & (df['Data_Usage'] <= 2000),
-    (df['Data_Usage'] < 1000)
-]
-labels = ['Gold', 'Silver', 'Bronze']
-df['Segment'] = np.select(conditions, labels, default='Unknown')
-
-# --- داشبورد مدیریتی (KPIs) ---
+# --- 4. MAIN DASHBOARD ---
+st.title("📡 Telecom Data Analysis Dashboard")
+st.markdown(f"**Data Source:** *{data_source}* | **Records Displayed:** `{len(filtered_df):,}`")
 st.markdown("---")
+
+# KPI Section
 col1, col2, col3, col4 = st.columns(4)
+total_usage = filtered_df['Data_Usage'].sum()
+avg_duration = filtered_df['Duration'].mean()
+fraud_count = len(filtered_df[(filtered_df['Duration'] > 3300) | (filtered_df['Data_Usage'] > 450)])
 
-total_calls = len(df)
-total_usage_mb = df['Data_Usage'].sum()
-avg_duration = df['Duration'].mean()
-fraud_count = len(df[(df['Duration'] > 3300)])
+col1.metric("Total Data Usage", f"{total_usage / 1e6:.2f} TB")
+col2.metric("Avg Call Duration", f"{avg_duration / 60:.1f} min")
+col3.metric("Total Calls", f"{len(filtered_df):,}")
+col4.metric("Potential Fraud", f"{fraud_count}", delta_color="inverse")
 
-col1.metric("Total Calls", f"{total_calls:,}")
-col2.metric("Total Data", f"{total_usage_mb / 1e6:.1f} TB")
-col3.metric("Avg Duration", f"{avg_duration:.0f} sec")
-col4.metric("Fraud Alerts", f"{fraud_count}", delta_color="inverse")
+# --- 5. CHARTS ROW 1 ---
+st.markdown("### 📊 Traffic & Usage Analysis")
+row1_col1, row1_col2 = st.columns(2)
 
-# --- تب‌های تحلیل ---
-tab1, tab2, tab3 = st.tabs(["📊 Traffic Analysis", "🚨 Fraud Detection", "📂 Raw Data"])
+with row1_col1:
+    st.subheader("Hourly Traffic (Peak Hours)")
+    filtered_df['Hour'] = filtered_df['Date'].dt.hour
+    hourly_counts = filtered_df.groupby('Hour').size()
 
-with tab1:
-    col_chart1, col_chart2 = st.columns(2)
+    fig1, ax1 = plt.subplots(figsize=(8, 4))
+    ax1.plot(hourly_counts.index, hourly_counts.values, marker='o', color='purple', linewidth=2)
+    ax1.set_xlabel("Hour of Day")
+    ax1.set_ylabel("Number of Calls")
+    ax1.grid(True, alpha=0.3)
 
-    # --- نمودار ۱: مصرف دیتا (میله‌ای) ---
-    with col_chart1:
-        st.subheader("Total Internet Usage by Call Type")
-        usage_summary = df.groupby('Call_Type')['Data_Usage'].sum()
+    # Dynamic Y-Limit
+    if len(hourly_counts) > 0:
+        y_min = max(0, hourly_counts.min() - (hourly_counts.max() * 0.1))
+        ax1.set_ylim(bottom=y_min)
 
-        fig1, ax1 = plt.subplots(figsize=(8, 6))
-        # نکته: اگر بعد از فیلتر دیتا خالی باشد هندل می‌شود
-        if not usage_summary.empty:
-            usage_summary.plot(kind='bar', color=['skyblue', 'orange', 'green', 'red'][:len(usage_summary)], ax=ax1)
+    st.pyplot(fig1)
 
-            # فرمت محور Y: نمایش به صورت میلیون (M)
-            ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: f'{x * 1e-6:.0f}M'))
+with row1_col2:
+    st.subheader("Data Usage by Call Type")
+    usage_by_type = filtered_df.groupby('Call_Type')['Data_Usage'].sum()
 
-            y_max = usage_summary.max()
-            if y_max > 0:
-                locator_step = y_max / 5
-                ax1.yaxis.set_major_locator(mticker.MultipleLocator(locator_step))
+    fig2, ax2 = plt.subplots(figsize=(8, 4))
+    usage_by_type.plot(kind='bar', color=['#3498db', '#e74c3c', '#2ecc71', '#f1c40f'], ax=ax2)
+    ax2.set_ylabel("Usage (MB)")
+    plt.xticks(rotation=0)
 
-            ax1.set_ylabel('Usage (MB)')
-            ax1.grid(axis='y', linestyle='-', alpha=0.4)
-            plt.xticks(rotation=45)
-            st.pyplot(fig1)
-        else:
-            st.warning("No data available for selected filter.")
+    # Formatter 5M
+    ax2.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, pos: f'{x * 1e-6:.1f}M'))
+    ax2.yaxis.set_major_locator(mticker.MultipleLocator(5000000))
 
-    # --- نمودار ۲: ترافیک شبکه (ساعت پیک) ---
-    with col_chart2:
-        st.subheader("Network Traffic (Peak Hours Analysis)")
-        if 'Date' in df.columns and not df.empty:
-            df['Hour'] = df['Date'].dt.hour
-            # شمارش تعداد تماس در هر ساعت از شبانه‌روز (تجمیع ۳۰ روز)
-            hourly_counts = df.groupby('Hour').size()
+    st.pyplot(fig2)
 
-            fig2, ax2 = plt.subplots(figsize=(8, 6))
-            hourly_counts.plot(kind='line', marker='o', color='purple', linewidth=2, ax=ax2)
+# --- 6. SEGMENTATION & FRAUD ---
+st.markdown("### 🎯 Segmentation & Security")
+row2_col1, row2_col2 = st.columns([1, 2])
 
-            # تنظیم کف نمودار برای برجسته شدن نوسانات
-            max_calls = hourly_counts.max()
-            min_calls = hourly_counts.min()
-            data_range = max_calls - min_calls
-            if data_range > 0:
-                dynamic_bottom = max(0, min_calls - (data_range * 0.2))
-                ax2.set_ylim(bottom=dynamic_bottom)
+with row2_col1:
+    st.subheader("Customer Segments")
+    conditions = [
+        (filtered_df['Data_Usage'] > 450),
+        (filtered_df['Data_Usage'] >= 200) & (filtered_df['Data_Usage'] <= 450),
+        (filtered_df['Data_Usage'] < 200)
+    ]
+    labels = ['Gold', 'Silver', 'Bronze']
+    filtered_df['Segment'] = np.select(conditions, labels, default='Unknown')
+    segment_counts = filtered_df['Segment'].value_counts()
 
-            ax2.yaxis.set_major_formatter(mticker.StrMethodFormatter('{x:,.0f}'))
-            ax2.grid(True, linestyle='--', alpha=0.7)
-            ax2.set_xlabel("Hour of Day (0-23)")
-            ax2.set_xticks(range(0, 24, 2))  # نمایش ساعت‌ها به صورت زوج
-            st.pyplot(fig2)
-        else:
-            st.warning("Not enough data for traffic analysis.")
+    fig3, ax3 = plt.subplots(figsize=(6, 6))
+    wedges, texts, autotexts = ax3.pie(segment_counts, labels=segment_counts.index, autopct='%1.1f%%',
+                                       colors=['#FFD700', '#C0C0C0', '#CD7F32'], startangle=140)
+    # Shadow effect
+    for w in wedges:
+        w.set_path_effects([path_effects.SimplePatchShadow(), path_effects.Normal()])
 
-    # --- ردیف دوم: نمودار دایره‌ای ---
-    st.markdown("---")
-    col_chart3, col_spacer = st.columns([1, 1])
+    st.pyplot(fig3)
 
-    with col_chart3:
-        st.subheader("Customer Segmentation")
-        segment_counts = df['Segment'].value_counts()
-
-        if not segment_counts.empty:
-            color_map = {'Gold': '#FFD700', 'Silver': '#C0C0C0', 'Bronze': '#CD7F32'}
-            safe_colors = [color_map.get(l, 'grey') for l in segment_counts.index]
-            explode = [0.05 if l == 'Gold' else 0 for l in segment_counts.index]
-
-            fig3, ax3 = plt.subplots(figsize=(8, 8))
-            wedges, texts, autotexts = ax3.pie(
-                segment_counts, labels=segment_counts.index, autopct='%1.1f%%',
-                startangle=140, colors=safe_colors, explode=explode, shadow=False
-            )
-
-            for w in wedges:
-                w.set_path_effects([
-                    path_effects.SimplePatchShadow(offset=(3, -3), alpha=0.4, shadow_rgbFace='black'),
-                    path_effects.Normal()
-                ])
-
-            st.pyplot(fig3)
-        else:
-            st.info("No segments found.")
-
-with tab2:
-    st.subheader("Suspicious Activity Report")
-    fraud_df = df[(df['Duration'] > 3300)]
+with row2_col2:
+    st.subheader("🚨 Suspicious Transactions (Fraud Alert)")
+    fraud_df = filtered_df[(filtered_df['Duration'] > 3300) | (filtered_df['Data_Usage'] > 450)]
 
     if not fraud_df.empty:
-        st.error(f"⚠️ Found {len(fraud_df)} suspicious records (Duration > 55 min).")
-        st.dataframe(fraud_df.head(200).style.highlight_max(axis=0, color='pink'))
+        st.dataframe(fraud_df[['Date', 'Call_Type', 'Duration', 'Data_Usage', 'Segment']].head(100), height=300)
+        st.warning(f"Displaying top 100 out of {len(fraud_df)} suspicious records.")
     else:
-        st.success("✅ Clean Network Status.")
-
-with tab3:
-    st.dataframe(df.head(100))
+        st.success("No suspicious activity detected in the selected data.")
